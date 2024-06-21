@@ -16,7 +16,7 @@ openai.api_version = api_version
 openai.api_key = api_key
 
 # Load the Excel file into a pandas DataFrame
-excel_file = r"C:\Users\guru.km\Downloads\Book.xlsx"   # Replace with your Excel file path
+excel_file = "Book.xlsx"   # Replace with your Excel file path
 df = pd.read_excel(excel_file)
 
 def get_openai_response(history, data):
