@@ -4,7 +4,6 @@ PyPDF2==3.0.1
 langchain==0.3.2
 langchain-google-genai==2.0.0
 google-generativeai==0.7.0
-faiss-cpu==1.7.4
 python-docx==0.8.11
-openai==0.27.8
 python-dotenv==1.0.0
+Chroma==0.3.0
