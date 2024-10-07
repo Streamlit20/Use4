@@ -131,7 +131,7 @@ def generate_unique_key():
 
 # Main function with UI Specifications
 def main():
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    genai.configure(api_key="AIzaSyAnziUXE0zbGSoAb0VOqgHbkOTcFf7o97I")
     st.set_page_config(page_title="Chatbot2", layout="wide")
 
     if not st.session_state['authenticated']:
