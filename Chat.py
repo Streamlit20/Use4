@@ -54,8 +54,8 @@ def get_text_from_file(uploaded_file):
         file_mime_type, _ = mimetypes.guess_type(uploaded_file.name)
         
         if file_mime_type in ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]:
-            # Reading Excel file using openpyxl explicitly
-            df = pd.read_excel(uploaded_file, engine="openpyxl")
+            # Reading Excel file
+            df = pd.read_excel(uploaded_file)
             text = df.to_string()
         elif file_mime_type == "application/pdf":
             # Handling PDF files using PyPDF2
@@ -72,6 +72,7 @@ def get_text_from_file(uploaded_file):
     except Exception as e:
         st.error(f"Error processing file {uploaded_file.name}: {e}")
     return text
+
 
 # combining text from uploaded files
 def get_text_from_files(files):
