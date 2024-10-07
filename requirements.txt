@@ -1,4 +1,10 @@
-openai
 streamlit
 pandas
-azure-identity
+PyPDF2
+langchain
+langchain-google-genai
+google-generativeai
+FAISS
+python-docx
+openai
+python-dotenv
