@@ -5,13 +5,12 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
-from langchain.vectorstores import FAISS
+from langchain.vectorstores import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 from docx import Document
-import mimetypes
 
 # Initialize session state for authentication and conversation history
 if 'authenticated' not in st.session_state:
@@ -37,7 +36,7 @@ def login():
                 st.session_state['authenticated'] = True
                 st.session_state['role'] = "admin"
                 st.success("Logged in as Admin")
-                # user login
+            # user login
             elif username == "user" and password == "user@123":
                 st.session_state['authenticated'] = True
                 st.session_state['role'] = "user"
@@ -50,24 +49,23 @@ def get_text_from_file(uploaded_file):
     """Extract text from uploaded files of various types."""
     text = ""
     try:
-        file_mime_type, _ = mimetypes.guess_type(uploaded_file.name)
+        file_extension = uploaded_file.name.split('.')[-1].lower()
         
-        if file_mime_type in ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]:
+        if file_extension in ["xlsx", "xls"]:
             # Reading Excel file
             df = pd.read_excel(uploaded_file)
             text = df.to_string()
-        elif file_mime_type == "application/pdf":
+        elif file_extension == "pdf":
             # Handling PDF files using PyPDF2
             reader = PdfReader(uploaded_file)
             text = ' '.join(page.extract_text() for page in reader.pages if page.extract_text() is not None)
-        elif file_mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        elif file_extension == "docx":
             # Handling DOCX files using python-docx
             doc = Document(uploaded_file)
             paragraphs = [paragraph.text for paragraph in doc.paragraphs]
             text = "\n".join(paragraphs)
         else:
-            # Unsupported file type
-            st.warning(f"Unsupported file type: {file_mime_type}.")
+            st.warning(f"Unsupported file type: {file_extension}.")
     except Exception as e:
         st.error(f"Error processing file {uploaded_file.name}: {e}")
     return text
@@ -90,8 +88,8 @@ def get_text_chunks(text):
 # transforming into vectors using embeddings
 def get_vector_store(text_chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
-    vector_store.save_local("faiss_index")
+    vector_store = Chroma.from_texts(text_chunks, embedding=embeddings)
+    vector_store.persist()
 
 # using a prompt template for question handling using gemini-pro model
 def get_conversational_chain():
@@ -103,7 +101,6 @@ def get_conversational_chain():
 
     Answer:
     """
-
     model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
@@ -112,14 +109,16 @@ def get_conversational_chain():
 # Chatbot functionality
 def chatbot_response(user_question):
     # embedding the question and generating a response
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-    docs = new_db.similarity_search(user_question)
-    chain = get_conversational_chain()
-    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
-    response_text = response["output_text"]
-    
-    return response_text
+    try:
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        vector_store = Chroma(persist_directory="chroma_store")
+        docs = vector_store.similarity_search(user_question)
+        chain = get_conversational_chain()
+        response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+        return response["output_text"]
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        return "Sorry, I couldn't process the response."
 
 # Initialize a counter for generating unique keys
 unique_key_counter = 0
@@ -130,11 +129,9 @@ def generate_unique_key():
     unique_key_counter += 1
     return f"input_{unique_key_counter}"
 
-
 # Main function with UI Specifications
 def main():
-    load_dotenv()
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     st.set_page_config(page_title="Chatbot2", layout="wide")
 
     if not st.session_state['authenticated']:
@@ -143,14 +140,13 @@ def main():
         if st.session_state['role'] == "admin":
             # Admin-specific functionality
             st.header("Admin Dashboard")
-            unique_key = generate_unique_key()
-            user_question_user = st.text_input(f"You:", key=unique_key)
-            while user_question_user:
-                st.write(chatbot_response(user_question_user))
-                unique_key = generate_unique_key()
-                user_question_user = st.text_input(f"You:", key=unique_key)
+            with st.form(key='chat_form_admin'):
+                user_question_admin = st.text_input(f"You:")
+                submit_button_admin = st.form_submit_button(label="Send")
+                if submit_button_admin and user_question_admin:
+                    st.write(chatbot_response(user_question_admin))
 
-            # admin-specific controls 
+            # Admin file upload
             with st.sidebar:
                 st.title("Admin Document Upload:")
                 uploaded_files_admin = st.file_uploader("Upload files (PDF, DOCX, etc.)", accept_multiple_files=True)
@@ -163,15 +159,12 @@ def main():
         elif st.session_state['role'] == "user":
             # User-specific functionality
             st.header("Search in Files")
-            #with st.expander("Chat Bot"):
-            unique_key = generate_unique_key()
-            user_question_user = st.text_input(f"You:", key=unique_key)
-            while user_question_user:
-                st.write(chatbot_response(user_question_user))
-                unique_key = generate_unique_key()
-                user_question_user = st.text_input(f"You:", key=unique_key)
-            
-           
+            with st.form(key='chat_form_user'):
+                user_question_user = st.text_input(f"You:")
+                submit_button_user = st.form_submit_button(label="Send")
+                if submit_button_user and user_question_user:
+                    st.write(chatbot_response(user_question_user))
+
 # calling the main function
 if __name__ == "__main__":
     main()
