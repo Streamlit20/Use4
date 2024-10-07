@@ -11,6 +11,8 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 from docx import Document
+import mimetypes
+import openpyxl
 
 # Initialize session state for authentication and conversation history
 if 'authenticated' not in st.session_state:
