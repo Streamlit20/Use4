@@ -8,3 +8,4 @@ python-docx
 python-dotenv
 Chroma
 langchain-community
+openpyxl
