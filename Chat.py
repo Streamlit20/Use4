@@ -49,23 +49,24 @@ def get_text_from_file(uploaded_file):
     """Extract text from uploaded files of various types."""
     text = ""
     try:
-        file_extension = uploaded_file.name.split('.')[-1].lower()
+        file_mime_type, _ = mimetypes.guess_type(uploaded_file.name)
         
-        if file_extension in ["xlsx", "xls"]:
-            # Reading Excel file
-            df = pd.read_excel(uploaded_file)
+        if file_mime_type in ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]:
+            # Reading Excel file using openpyxl explicitly
+            df = pd.read_excel(uploaded_file, engine="openpyxl")
             text = df.to_string()
-        elif file_extension == "pdf":
+        elif file_mime_type == "application/pdf":
             # Handling PDF files using PyPDF2
             reader = PdfReader(uploaded_file)
             text = ' '.join(page.extract_text() for page in reader.pages if page.extract_text() is not None)
-        elif file_extension == "docx":
+        elif file_mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             # Handling DOCX files using python-docx
             doc = Document(uploaded_file)
             paragraphs = [paragraph.text for paragraph in doc.paragraphs]
             text = "\n".join(paragraphs)
         else:
-            st.warning(f"Unsupported file type: {file_extension}.")
+            # Unsupported file type
+            st.warning(f"Unsupported file type: {file_mime_type}.")
     except Exception as e:
         st.error(f"Error processing file {uploaded_file.name}: {e}")
     return text
